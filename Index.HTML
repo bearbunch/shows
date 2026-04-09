@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Theater Booking</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+.row {
+  margin-bottom: 5px;
+}
+
+.seat {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px;
+  border-radius: 4px;
+  font-size: 10px;
+  color: white;
+  cursor: pointer;
+}
+
+.free { background: green; }
+.booked { background: red; }
+</style>
+</head>
+<body>
+
+<h1>Book Seats</h1>
+<div id="show"></div>
+<div id="seats"></div>
+
+<script>
+const backend = "https://xrxfkudrtyugvrycfzsaazssaaszzdrefztadfzd.onrender.com"; // replace with your Render backend
+const socket = io(backend);
+
+function load() {
+  fetch(backend + "/show")
+    .then(r => r.json())
+    .then(data => {
+      if (!data.show) {
+        show.innerHTML = "No show scheduled";
+        seats.innerHTML = "";
+        return;
+      }
+
+      show.innerHTML = `Show: ${data.show.name}<br>Date: ${data.show.date}<br>Time: ${data.show.time}<br><br>`;
+      drawSeats(data.seats);
+    });
+}
+
+function drawSeats(seatsData) {
+  let rows = {};
+  seatsData.forEach(s => {
+    const letter = s.seat[0];
+    if (!rows[letter]) rows[letter] = [];
+    rows[letter].push(s);
+  });
+
+  let html = "";
+  for (let r of "ABCDEFGHIJK") { // row order A→K
+    if (!rows[r]) continue;
+    html += `<div class="row"><b>${r}</b> `;
+    rows[r].forEach(s => {
+      if (s.booked) {
+        html += `<div class="seat booked">${s.seat}</div>`;
+      } else {
+        html += `<div class="seat free" onclick="book('${s.seat}')">${s.seat}</div>`;
+      }
+    });
+    html += "</div>";
+  }
+  document.getElementById("seats").innerHTML = html;
+}
+
+function book(seat) {
+  const name = prompt("Enter your name");
+  if (!name) return;
+
+  fetch(backend + "/book", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, seat })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      alert(data.error);
+    } else {
+      alert("Seat booked: " + data.seat);
+    }
+  });
+}
+
+// Live updates
+socket.on("seatBooked", load);
+socket.on("showCreated", load);
+socket.on("showDeleted", load);
+
+load();
+</script>
+</body>
+</html>
